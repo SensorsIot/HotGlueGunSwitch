@@ -2,8 +2,8 @@
   HotGlueSwitch
 
   This timer turns an Hot Glue Gun or any other appliance on for a time (timer2) and switches it off afterwards.
-  For Hot Glue guns a "readiness warning can be built in: after a time (WARNING_DURATION) a beeper announces, that the temperature should be ok to start working.
-  Before the timer1 switches the gun off it warns for one minute. During this time, pressing the button extends the time.
+  For Hot Glue guns a "readiness warning can be built in: after a time timer1  a beeper announces for READY_DURATION, that the temperature should be ok to start working.
+  Before the timer2 switches the gun off it warns for WARNING_DURATION. During this time, pressing the button extends the time for another timer2 duration.
 
   It runs on an ATTINY85
 
@@ -21,6 +21,8 @@
 #define OUT_ON		HIGH
 #define OUT_OFF		LOW
 
+#define FACTOR 1000
+
 
 // Pin1 RESET  #define DEBUG1 PB5 // Pin1, nur mit Fuse change
 
@@ -32,26 +34,16 @@
 #define BUZZER PB1   // Pin6
 #define RELAIS PB2    // Pin7
 // Pin8 VCC
-/*
-#define SWITCH 3
-#define LED    4
-#define PROGRAMMER 5
-#define BUZZER 6
-#define RELAIS 7
 
-*/
-const long timer2 = 600;
-const long timer1 = 140; // 140 sec;
-const long WARNING_DURATION = 60000;  // 60sec;
-const long READY_DURATION = 3000;
-long address1 = 0;
-long address2 = 4;
+const int timer2 = 600;   // 600 sec = 10min
+const int timer1 = 140; // 140 sec (until glue is hot enough;
+const int WARNING_DURATION = 60;  // 60sec;
+const int READY_DURATION = 3;   // 3 sec
 
 byte status = 1;
 long timeStat;
 
 void setup() {
-  //  OSCCAL =  0x70; // Fuse 0x71 (4.8 MHz, no divide)
   pinMode(SWITCH, INPUT_PULLUP);
   pinMode(LED, OUTPUT);
   pinMode(PROGRAMMER, INPUT);
@@ -61,11 +53,7 @@ void setup() {
   digitalWrite(LED, OUT_OFF); //
   digitalWrite(BUZZER, OUT_OFF); //
   digitalWrite(RELAIS, OUT_ON); //
-
-  timer1 = EEPROMReadlong(address1);
-  timer2 = EEPROMReadlong(address2);
   timeStat = millis();
-  if (digitalRead(PROGRAMMER)) progTimer();
   delay(200);
 
 }
@@ -86,7 +74,7 @@ void loop () {
       beep(200);
       smartDelay(2000);
       if (keyPressed())  status = 3;
-      if (timeOut(timeStat, timer2 )) status = 4;  // Appliance off
+      if (timeOut(timeStat, timer2)) status = 4;  // Appliance off
       break;
 
     case 3:
@@ -114,7 +102,7 @@ void loop () {
       digitalWrite(LED, OUT_ON);
       beep(200);
       smartDelay(100);
-      if (timeOut(timeStat, ((timer1 + READY_DURATION) * FACTOR))) status = 6;
+      if (timeOut(timeStat, (timer1 + READY_DURATION))) status = 6;
       if (keyPressed()) status = 3;   // time extension
       break;
 
@@ -122,7 +110,7 @@ void loop () {
       // Status after Appliance ready: Appliance still on, but no more warning for readiness
       digitalWrite(RELAIS, OUT_ON);
       digitalWrite(LED, OUT_ON);
-      if (timeOut(timeStat, (timer2 - WARNING_DURATION))) status = 2;
+      if (timeOut(timeStat, timer2 - WARNING_DURATION)) status = 2;
       if (keyPressed()) status = 3;   // time extension
       break;
 
@@ -135,7 +123,7 @@ void loop () {
 
 boolean timeOut(long zeitEin, long dauer) {
   boolean timeOut = false;
-  if (millis() - zeitEin >= dauer) {
+  if (millis() - zeitEin >= dauer * FACTOR) {
     timeOut = true;
   }
   return timeOut;
@@ -169,23 +157,4 @@ void beep(int dauer) {
   digitalWrite(LED, OUT_ON);
 }
 
-void progTimer() {
-
-  while (!digitalRead(PROGRAMMER)) {
-    digitalWrite(LED), !digitalRead(LED)); // wait till jumper closed
-    delay(100);
-  }
-  long timer1 = millis() - timeStat;
-  if (timer1 > 5000) EEPROMWritelong(adress1, timer1); // time 1
-  else EEPROMWritelong(adress1, 0); // no warning signal
-
-  while (digitalRead(PROGRAMMER)) {
-    digitalWrite(LED), !digitalRead(LED)); // wait till jumper open
-    delay(100);
-  }
-  long timer2 = millis() - timeStat;
-  EEPROMWritelong(adress2, timer2); // time 2
-
-
-}
 
